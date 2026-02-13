@@ -33,7 +33,8 @@ jobs:
             BOT_NAME="${RAW_LOGIN}[bot]"
           fi
 
-          BOT_EMAIL="${BOT_ID}+${BOT_NAME}@users.noreply.github.com"
+          #BOT_EMAIL="${BOT_ID}+${BOT_NAME}@users.noreply.github.com"
+          BOT_EMAIL="<261265491+speeltuin[bot]@users.noreply.github.com"
 
           printf "Detected Bot: %s\n" "${BOT_NAME}"
           printf "Detected E-mail: %s\n" "${BOT_EMAIL}"

@@ -19,6 +19,10 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
 
+      - name: Debug token type
+        run: |
+          echo "Token starts with: $(echo '${{ steps.app-token.outputs.token }}' | cut -c1-10)"
+
       - name: Fetch GitHub App identity
         run: |
           curl -s \

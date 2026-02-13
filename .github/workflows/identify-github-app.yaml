@@ -15,7 +15,8 @@ jobs:
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_TOKEN }}
+          private-key: ${{ secrets.APP_SECRET_KEY }}
+          installation-id: ${{ secrets.APP_INSTALLATION_ID }}
 
       - name: Fetch GitHub App identity
         run: |

@@ -12,34 +12,22 @@ jobs:
         id: generate_token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_TOKEN }}
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Get bot identity
-        id: bot_identity
+      - name: Construct Bot Details
+        id: bot_identiyy
         env:
-          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
-          # Get the installation info using the token's allowed scopes
-          INSTALLATION_DATA=$(gh api /installation/repositories --jq '.repositories[0].owner')
+          BOT_LOGIN="${{ steps.generate-token.outputs.app-slug }}[bot]"
+          BOT_ID=$(gh api "users/${BOT_LOGIN}" --jq '.id')
+          BOT_EMAIL="${BOT_ID}+${BOT_LOGIN}@users.noreply.github.com"
 
-          RAW_LOGIN=$(echo "${INSTALLATION_DATA}" | jq -r '.login')
-          BOT_ID=$(echo "${INSTALLATION_DATA}" | jq -r '.id')
-
-          # Logic to ensure [bot] suffix exists but isn't doubled
-          if [[ "${RAW_LOGIN}" == *"[bot]" ]]; then
-            BOT_NAME="${RAW_LOGIN}"
-          else
-            BOT_NAME="${RAW_LOGIN}[bot]"
-          fi
-
-          #BOT_EMAIL="${BOT_ID}+${BOT_NAME}@users.noreply.github.com"
-          BOT_EMAIL="261265491+speeltuin[bot]@users.noreply.github.com"
-
-          printf "Detected Bot: %s\n" "${BOT_NAME}"
+          printf "Detected Bot: %s\n" "${BOT_LOGIN}"
           printf "Detected E-mail: %s\n" "${BOT_EMAIL}"
 
-          echo "bot_name=${BOT_NAME}" >> $GITHUB_OUTPUT
+          echo "bot_name=${BOT_LOGIN}" >> $GITHUB_OUTPUT
           echo "bot_email=${BOT_EMAIL}" >> $GITHUB_OUTPUT
 
       - name: Checkout code

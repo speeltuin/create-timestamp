@@ -16,7 +16,7 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Construct Bot Details
-        id: bot_identiyy
+        id: bot_identity
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |

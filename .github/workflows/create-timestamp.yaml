@@ -93,7 +93,7 @@ jobs:
                 SUMMARY_ROWS="${SUMMARY_ROWS}| ✅ | $FILE |\n"
               fi
             fi
-          done < <(git status --porcelain)
+          done < <(git status --porcelain --untracked-files=all)
 
           if [[ "$TREE_JSON" == "[]" ]]; then
             echo "### 😴 No Changes Detected" >> $GITHUB_STEP_SUMMARY

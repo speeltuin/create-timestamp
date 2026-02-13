@@ -9,7 +9,7 @@ jobs:
       TZ: UTC  # Ensures runner and server timestamps match in logs
     steps:
       - name: Generate Token
-        id: generate_token
+        id: app-token
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -18,9 +18,9 @@ jobs:
       - name: Construct Bot Details
         id: bot_identiyy
         env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          BOT_LOGIN="${{ steps.generate-token.outputs.app-slug }}[bot]"
+          BOT_LOGIN="${{ steps.app-token.outputs.app-slug }}[bot]"
           BOT_ID=$(gh api "users/${BOT_LOGIN}" --jq '.id')
           BOT_EMAIL="${BOT_ID}+${BOT_LOGIN}@users.noreply.github.com"
 
@@ -33,7 +33,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          token: ${{ steps.generate_token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Toggle the existence of a timestamp
         run: |
@@ -48,7 +48,7 @@ jobs:
       - name: Verified REST Sync
         id: sync_step
         env:
-          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           REPO="${{ github.repository }}"
           BRANCH="main"

@@ -134,6 +134,8 @@ jobs:
             echo -e "\n[View Verified Commit](https://github.com/$REPO/commit/$NEW_COMMIT_SHA)"
           } >> $GITHUB_STEP_SUMMARY
 
+          echo "So far so good?"
+
           # --- NEW: Create Verified Tag ---
           TAG_NAME="v$(date +'%Y.%m.%d-%H%M')"
           TAG_MESSAGE="Automated release"

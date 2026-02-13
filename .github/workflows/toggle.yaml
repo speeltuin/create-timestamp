@@ -22,5 +22,5 @@ jobs:
       - uses: suzuki-shunsuke/commit-action@f28421acc277a6d6a9c1f94ea449076ad77dba67 # v0.1.0
         with:
           app_id: ${{ secrets.APP_ID }}
-          app_private_key: ${{ secretcs.APP_PRIVATE_KEY }}
+          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
           fail_on_self_push: false

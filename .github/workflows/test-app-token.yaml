@@ -9,33 +9,34 @@ permissions:
 
 jobs:
   test-app-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.MY_APP_ID }}
+          private-key: ${{ secrets.MY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
 
-  - name: Generate GitHub App token
-    id: app-token
-    uses: actions/create-github-app-token@v2
-    with:
-      app-id: ${{ vars.MY_APP_ID }}
-      private-key: ${{ secrets.MY_APP_PRIVATE_KEY }}
-      owner: ${{ github.repository_owner }}
-      repositories: ${{ github.event.repository.name }}
+      - name: Test /app
+        run: |
+          curl -i \
+            -H "Authorization: token ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/app
 
-  - name: Test /app
-    run: |
-      curl -i \
-        -H "Authorization: token ${{ steps.app-token.outputs.token }}" \
-        -H "Accept: application/vnd.github+json" \
-        https://api.github.com/app
+      - name: Test /user
+        run: |
+          curl -i \
+            -H "Authorization: token ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user
 
-  - name: Test /user
-    run: |
-      curl -i \
-        -H "Authorization: token ${{ steps.app-token.outputs.token }}" \
-        -H "Accept: application/vnd.github+json" \
-        https://api.github.com/user
-
-  - name: Test /installation
-    run: |
-      curl -i \
-        -H "Authorization: token ${{ steps.app-token.outputs.token }}" \
-        -H "Accept: application/vnd.github+json" \
-        https://api.github.com/installation
+      - name: Test /installation
+        run: |
+          curl -i \
+            -H "Authorization: token ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/installation

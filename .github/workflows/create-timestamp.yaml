@@ -1,0 +1,147 @@
+name: Create Timestamp
+on:
+  workflow_dispatch:
+
+jobs:
+  create-timestamp:
+    runs-on: ubuntu-latest
+    env:
+      TZ: UTC  # Ensures runner and server timestamps match in logs
+    steps:
+      - name: Generate Token
+        id: generate_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_TOKEN }}
+
+      - name: Get bot identity
+        id: bot_identity
+        env:
+          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+        run: |
+          # Get the installation info using the token's allowed scopes
+          INSTALLATION_DATA=$(gh api /installation/repositories --jq '.repositories[0].owner')
+
+          RAW_LOGIN=$(echo "${INSTALLATION_DATA}" | jq -r '.login')
+          BOT_ID=$(echo "${INSTALLATION_DATA}" | jq -r '.id')
+
+          # Logic to ensure [bot] suffix exists but isn't doubled
+          if [[ "${RAW_LOGIN}" == *"[bot]" ]]; then
+            BOT_NAME="${RAW_LOGIN}"
+          else
+            BOT_NAME="${RAW_LOGIN}[bot]"
+          fi
+
+          BOT_EMAIL="${BOT_ID}+${BOT_NAME}@users.noreply.github.com"
+
+          printf "Detected Bot: %s\n" "${BOT_NAME}"
+          printf "Detected E-mail: %s\n" "${BOT_EMAIL}"
+
+          echo "bot_name=${BOT_NAME}" >> $GITHUB_OUTPUT
+          echo "bot_email=${BOT_EMAIL}" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+
+      - name: Toggle the existence of a timestamp
+        run: |
+          mkdir -p data flipflop
+          date > data/bot-run.txt
+          if [[ -f flipflop/toggle ]]; then
+            rm flipflop/toggle
+          else
+            echo toggle > flipflop/toggle
+          fi
+
+      - name: Verified REST Sync
+        id: sync_step
+        env:
+          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          BRANCH="main"
+
+          # Get current HEAD and Tree SHAs
+          BASE_INFO=$(gh api repos/$REPO/git/refs/heads/$BRANCH)
+          BASE_SHA=$(echo "$BASE_INFO" | jq -r '.object.sha')
+          TREE_SHA=$(gh api repos/$REPO/git/commits/$BASE_SHA | jq -r '.tree.sha')
+
+          # Build the Tree Array
+          TREE_JSON="[]"
+          SUMMARY_ROWS=""
+
+          while read -r STATUS FILE; do
+            [ -z "$STATUS" ] && continue
+            if [[ "$STATUS" == *"D"* ]]; then
+              TREE_JSON=$(echo "$TREE_JSON" | jq --arg p "$FILE" '. += [{path: $p, mode: "100644", type: "blob", sha: null}]')
+              SUMMARY_ROWS="${SUMMARY_ROWS}| 🗑️ | $FILE |\n"
+            else
+              if [ -f "$FILE" ]; then
+                # Handle large files via Blobs (handles 9MB+ easily)
+                CONTENT=$(base64 -w 0 < "$FILE")
+                BLOB_SHA=$(gh api repos/$REPO/git/blobs -X POST -f content="$CONTENT" -f encoding="base64" | jq -r '.sha')
+
+                if [[ -z "$BLOB_SHA" || "$BLOB_SHA" == "null" ]]; then
+                  echo "Error: Failed to upload blob for $FILE" && exit 1
+                fi
+
+                TREE_JSON=$(echo "$TREE_JSON" | jq --arg p "$FILE" --arg s "$BLOB_SHA" \
+                  '. += [{path: $p, mode: "100644", type: "blob", sha: $s}]')
+                SUMMARY_ROWS="${SUMMARY_ROWS}| ✅ | $FILE |\n"
+              fi
+            fi
+          done < <(git status --porcelain)
+
+          if [[ "$TREE_JSON" == "[]" ]]; then
+            echo "### 😴 No Changes Detected" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Create Tree
+          NEW_TREE_SHA=$(jq -n --arg bt "$TREE_SHA" --argjson tr "$TREE_JSON" \
+            '{base_tree: $bt, tree: $tr}' | \
+            gh api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
+
+          if [[ -z "$NEW_TREE_SHA" || "$NEW_TREE_SHA" == "null" ]]; then
+            echo "Error: Failed to create tree." && exit 1
+          fi
+
+          # Create Commit (Omit author/committer to trigger GitHub GPG signing)
+          BOT_NAME="${{ steps.bot_identity.outputs.bot_name }}"
+          BOT_EMAIL="${{ steps.bot_identity.outputs.bot_email }}"
+          BOT_SIG="Signed-off-by: $BOT_NAME <$BOT_EMAIL>"
+          MESSAGE=$(printf "Automated sync (verified) [skip ci]\n\n%s" "$BOT_SIG")
+
+          NEW_COMMIT_SHA=$(jq -n \
+            --arg msg "$MESSAGE" \
+            --arg ts "$NEW_TREE_SHA" \
+            --arg ps "$BASE_SHA" \
+            '{message: $msg, tree: $ts, parents: [$ps]}' | \
+            gh api repos/$REPO/git/commits -X POST --input - | jq -r '.sha')
+
+          if [[ -z "$NEW_COMMIT_SHA" || "$NEW_COMMIT_SHA" == "null" ]]; then
+            echo "Error: Failed to create commit." && exit 1
+          fi
+
+          # Update Branch Reference
+          UPDATE_STATUS=$(gh api repos/$REPO/git/refs/heads/$BRANCH -X PATCH -f sha="$NEW_COMMIT_SHA" | jq -r '.object.sha')
+
+          if [[ "$UPDATE_STATUS" != "$NEW_COMMIT_SHA" ]]; then
+            echo "Error: Branch reference failed to update." && exit 1
+          fi
+
+          # Job Summary Output
+          echo "commit_sha=$NEW_COMMIT_SHA" >> $GITHUB_OUTPUT
+          {
+            echo "### 🚀 Verified Bot Sync Successful"
+            echo "| Status | File Path |"
+            echo "| :--- | :--- |"
+            echo -e "$SUMMARY_ROWS"
+            echo -e "\n[View Verified Commit](https://github.com/$REPO/commit/$NEW_COMMIT_SHA)"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Next Step
+        run: echo "The new commit is ${{ steps.sync_step.outputs.commit_sha }}"

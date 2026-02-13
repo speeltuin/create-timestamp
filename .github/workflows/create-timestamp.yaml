@@ -149,10 +149,11 @@ jobs:
 
           # 1. Create the Tag Object
           TAG_SHA=$(jq -n \
+            --arg tag "$TAG_NAME" \
             --arg msg "$TAG_MESSAGE" \
             --arg obj "$NEW_COMMIT_SHA" \
             --arg type "commit" \
-            '{tag: $TAG_NAME, message: $msg, object: $obj, type: $type}' | \
+            '{tag: $tag, message: $msg, object: $obj, type: $type}' | \
             gh api repos/$REPO/git/tags -X POST --input - | jq -r '.sha')
 
           # 2. Create the Reference (This makes it appear in the UI)

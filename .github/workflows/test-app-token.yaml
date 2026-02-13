@@ -20,6 +20,11 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
 
+      - name: Debug token prefix
+        run: |
+          TOKEN="${{ steps.app-token.outputs.token }}"
+          echo "Token prefix: ${TOKEN:0:4}"
+
       - name: Test /app
         run: |
           curl -i \

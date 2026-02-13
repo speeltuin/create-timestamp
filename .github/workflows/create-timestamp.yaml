@@ -147,13 +147,18 @@ jobs:
           TAG_NAME="v$(date +'%Y.%m.%d-%H%M')"
           TAG_MESSAGE="Automated release"
 
-          # 1. Create the Tag Object
-          TAG_SHA=$(jq -n \
+          TAGGER_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          PAYLOAD=$(jq -n \
             --arg tag "$TAG_NAME" \
             --arg msg "$TAG_MESSAGE" \
             --arg obj "$NEW_COMMIT_SHA" \
-            '{tag: $tag, message: $msg, object: $obj, type: "commit"}' | \
-            gh api repos/$REPO/git/tags -X POST --input - | jq -r '.sha')
+            --arg name "$BOT_NAME" \
+            --arg email "$BOT_EMAIL" \
+            --arg date "$TAGGER_DATE" \
+            '{tag: $tag, message: $msg, object: $obj, type: "commit", tagger: {name: $name, email: $email, date: $date}}')
+
+          TAG_SHA=$(echo "$PAYLOAD" | gh api repos/$REPO/git/tags -X POST --input - | jq -r '.sha')
 
           # 2. Create the Reference (This makes it appear in the UI)
           gh api repos/$REPO/git/refs -X POST -f ref="refs/tags/$TAG_NAME" -f sha="$TAG_SHA"

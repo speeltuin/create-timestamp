@@ -47,9 +47,11 @@ jobs:
 
       - name: Verified REST Sync
         id: sync_step
+        shell: bash
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          set +x
           REPO="${{ github.repository }}"
           BRANCH="main"
 

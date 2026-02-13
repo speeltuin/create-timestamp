@@ -1,0 +1,57 @@
+name: Identify GitHub App
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_TOKEN }}
+
+      - name: Fetch GitHub App identity
+        run: |
+          curl -s \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/app > app.json
+
+          echo "App name: $(jq -r .name app.json)"
+          echo "App slug: $(jq -r .slug app.json)"
+          echo "App id: $(jq -r .id app.json)"
+
+      - name: Construct bot email
+        run: |
+          APP_ID=$(jq -r .id app.json)
+          SLUG=$(jq -r .slug app.json)
+          echo "Bot username: ${SLUG}[bot]"
+          echo "Bot email: ${APP_ID}+${SLUG}[bot]@users.noreply.github.com"
+
+      - name: Call /app
+        run: |
+          curl -s \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/app | jq .
+
+      - name: Call /user
+        run: |
+          curl -s \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user | jq .
+
+      - name: Call /installation
+        run: |
+          curl -s \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/installation | jq .

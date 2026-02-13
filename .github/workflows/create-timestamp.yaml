@@ -145,20 +145,20 @@ jobs:
 
           # --- NEW: Create Verified Tag ---
           TAG_NAME="v$(date +'%Y.%m.%d-%H%M')"
-          TAG_MESSAGE="Automated release by $BOT_NAME"
+          TAG_MESSAGE="Automated release"
 
           # 1. Create the Tag Object
           TAG_SHA=$(jq -n \
             --arg tag "$TAG_NAME" \
             --arg msg "$TAG_MESSAGE" \
             --arg obj "$NEW_COMMIT_SHA" \
-            --arg type "commit" \
-            '{tag: $tag, message: $msg, object: $obj, type: $type}' | \
+            '{tag: $tag, message: $msg, object: $obj, type: "commit"}' | \
             gh api repos/$REPO/git/tags -X POST --input - | jq -r '.sha')
 
           # 2. Create the Reference (This makes it appear in the UI)
           gh api repos/$REPO/git/refs -X POST -f ref="refs/tags/$TAG_NAME" -f sha="$TAG_SHA"
           gh api repos/$REPO/git/refs/tags/$TAG_NAME --jq '.object.type'
+          gh api repos/$REPO/git/tags/$TAG_SHA --jq '.verification'
 
           echo "### ✅ Verified Tag Created: $TAG_NAME" >> $GITHUB_STEP_SUMMARY
 

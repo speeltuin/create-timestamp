@@ -1,0 +1,26 @@
+name: Toggle
+on:
+  workflow_dispatch:
+
+jobs:
+  toggle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Toggle the existence of a timestamp
+        run: |
+          mkdir -p data flipflop
+          date > data/bot-run.txt
+          if [[ -f flipflop/toggle ]]; then
+            rm flipflop/toggle
+          else
+            echo toggle > flipflop/toggle
+          fi
+
+      - uses: suzuki-shunsuke/commit-action@f28421acc277a6d6a9c1f94ea449076ad77dba67 # v0.1.0
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          app_private_key: ${{ secretcs.APP_PRIVATE_KEY }}
+          fail_on_self_push: false

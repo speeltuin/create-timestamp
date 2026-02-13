@@ -143,5 +143,22 @@ jobs:
             echo -e "\n[View Verified Commit](https://github.com/$REPO/commit/$NEW_COMMIT_SHA)"
           } >> $GITHUB_STEP_SUMMARY
 
+          # --- NEW: Create Verified Tag ---
+          TAG_NAME="v$(date +'%Y.%m.%d-%H%M')"
+          TAG_MESSAGE="Automated release by $BOT_NAME"
+
+          # 1. Create the Tag Object
+          TAG_SHA=$(jq -n \
+            --arg msg "$TAG_MESSAGE" \
+            --arg obj "$NEW_COMMIT_SHA" \
+            --arg type "commit" \
+            '{tag: $TAG_NAME, message: $msg, object: $obj, type: $type}' | \
+            gh api repos/$REPO/git/tags -X POST --input - | jq -r '.sha')
+
+          # 2. Create the Reference (This makes it appear in the UI)
+          gh api repos/$REPO/git/refs -X POST -f ref="refs/tags/$TAG_NAME" -f sha="$TAG_SHA"
+
+          echo "### ✅ Verified Tag Created: $TAG_NAME" >> $GITHUB_STEP_SUMMARY
+
       - name: Next Step
         run: echo "The new commit is ${{ steps.sync_step.outputs.commit_sha }}"

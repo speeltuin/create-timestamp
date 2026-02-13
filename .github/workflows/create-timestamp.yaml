@@ -158,6 +158,7 @@ jobs:
 
           # 2. Create the Reference (This makes it appear in the UI)
           gh api repos/$REPO/git/refs -X POST -f ref="refs/tags/$TAG_NAME" -f sha="$TAG_SHA"
+          gh api repos/$REPO/git/refs/tags/$TAG_NAME --jq '.object.type'
 
           echo "### ✅ Verified Tag Created: $TAG_NAME" >> $GITHUB_STEP_SUMMARY
 

@@ -1,0 +1,112 @@
+name: Create Timestamp (GraphQL)
+on:
+  workflow_dispatch:
+
+jobs:
+  create-timestamp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Construct Bot Details
+        id: bot_identity
+        run: |
+          BOT_NAME="${{ steps.app-token.outputs.app-slug }}[bot]"
+          BOT_ID=$(gh api "users/${BOT_LOGIN}" --jq '.id')
+          BOT_EMAIL="${BOT_ID}+${BOT_LOGIN}@users.noreply.github.com"
+
+          printf "Detected Bot: %s\n" "${BOT_LOGIN}"
+          printf "Detected E-mail: %s\n" "${BOT_EMAIL}"
+
+          echo "bot_name=${BOT_LOGIN}" >> $GITHUB_OUTPUT
+          echo "bot_email=${BOT_EMAIL}" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Toggle the existence of a timestamp
+        run: |
+          mkdir -p data flipflop
+          date > data/bot-run.txt
+          if [[ -f flipflop/toggle ]]; then
+            rm flipflop/toggle
+          else
+            echo toggle > flipflop/toggle
+          fi
+
+      - name: Verified GraphQL Sync
+        id: sync_step
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          BRANCH="main"
+
+          # 1. Get current HEAD OID (for the safety lock)
+          QUERY='query($owner:String!, $name:String!, $branch:String!) {
+            repository(owner:$owner, name:$name) {
+              ref(qualifiedName:$branch) { target { ... on Commit { oid } } }
+            }
+          }'
+          HEAD_OID=$(gh api graphql -f query="$QUERY" -f owner="$REPO_OWNER" -f name="$REPO_NAME" -f branch="refs/heads/$BRANCH" --jq '.data.repository.ref.target.oid')
+
+          # Get the status in v2 format
+          STATUS_OUT=$(git status --porcelain=v2 -untracked-files=all)
+
+          # 2. Prepare Additions
+          # We catch:
+          # '1' or '2': Tracked files (Modified/Added/Renamed)
+          # '?': Untracked files (New directories/files)
+          # We filter out lines where the 'xy' status indicates a deletion (ends in 'D' or is 'D.')
+          ADDITIONS=$(echo "$STATUS_OUT" | grep -E '^1 |^2 |^\? ' | grep -v 'D$' | awk '{print $NF}' | while read -r FILE; do
+            if [ -f "$FILE" ]; then
+              CONTENT=$(base64 -w 0 < "$FILE")
+              jq -n --arg p "$FILE" --arg c "$CONTENT" '{path: $p, contents: $c}'
+            fi
+          done | jq -s '.')
+
+          # 3. Prepare Deletions
+          # In v2, deletions for tracked files start with '1' and have '.D' or 'D.' as the status
+          # We extract the last column (the file path)
+          DELETIONS=$(echo "$STATUS_OUT" | grep -E '^1 ' | awk '$2 ~ /D/ {print $NF}' | jq -R '.' | jq -s 'map({path: .})')
+
+          # 4. Execute the Mutation
+          MUTATION='mutation($input: CreateCommitOnDefaultBranchInput!) {
+            createCommitOnDefaultBranch(input: $input) {
+              commit { oid url }
+            }
+          }'
+          
+          # Build the final input object
+          MESSAGE="Automated sync (verified) [skip ci]"
+          RESULT=$(jq -n \
+            --arg repo "$REPO_NAME" \
+            --arg owner "$REPO_OWNER" \
+            --arg head "$HEAD_OID" \
+            --arg msg "$MESSAGE" \
+            --argjson add "$ADDITIONS" \
+            --argjson del "$DELETIONS" \
+            '{input: {
+                branch: {repositoryName: $repo, repositoryOwner: $owner},
+                expectedHeadOid: $head,
+                message: {headline: $msg},
+                fileChanges: {additions: $add, deletions: $del}
+            }}' | gh api graphql -f query="$MUTATION" --input -)
+
+          NEW_COMMIT_SHA=$(echo "$RESULT" | jq -r '.data.createCommitOnDefaultBranch.commit.oid')
+          
+          echo "commit_sha=$NEW_COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "### 🚀 Verified GraphQL Sync Successful" >> $GITHUB_STEP_SUMMARY
+          echo "New OID: $NEW_COMMIT_SHA" >> $GITHUB_STEP_SUMMARY
+
+      - name: Next Step
+        run: echo "The new commit is ${{ steps.sync_step.outputs.commit_sha }}"

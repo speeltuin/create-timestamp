@@ -93,25 +93,42 @@ jobs:
               commit { oid url }
             }
           }'
-          
-          # Build the final input object
+
+          # Build the FULL payload (Query + Variables)
           MESSAGE="Automated sync (verified) [skip ci]"
-          RESULT=$(jq -n \
+
+          PAYLOAD=$(jq -n \
+            --arg query "$MUTATION" \
             --arg repo "$REPO_NAME" \
             --arg owner "$REPO_OWNER" \
             --arg head "$HEAD_OID" \
             --arg msg "$MESSAGE" \
             --argjson add "$ADDITIONS" \
             --argjson del "$DELETIONS" \
-            '{input: {
-                branch: {repositoryName: $repo, repositoryOwner: $owner},
-                expectedHeadOid: $head,
-                message: {headline: $msg},
-                fileChanges: {additions: $add, deletions: $del}
-            }}' | gh api graphql -f query="$MUTATION" --input -)
+            '{
+              query: $query,
+              variables: {
+                input: {
+                  branch: {repositoryName: $repo, repositoryOwner: $owner},
+                  expectedHeadOid: $head,
+                  message: {headline: $msg},
+                  fileChanges: {additions: $add, deletions: $del}
+                }
+              }
+            }')
+
+          # Pipe the full JSON payload into gh api
+          RESULT=$(echo "$PAYLOAD" | gh api graphql --input -)
 
           NEW_COMMIT_SHA=$(echo "$RESULT" | jq -r '.data.createCommitOnDefaultBranch.commit.oid')
-          
+
+          # Safety check: ensure we actually got an OID back
+          if [[ "$NEW_COMMIT_SHA" == "null" || -z "$NEW_COMMIT_SHA" ]]; then
+            echo "Error: GraphQL mutation failed. Full response:"
+            echo "$RESULT" | jq .
+            exit 1
+          fi
+
           echo "commit_sha=$NEW_COMMIT_SHA" >> $GITHUB_OUTPUT
           echo "### 🚀 Verified GraphQL Sync Successful" >> $GITHUB_STEP_SUMMARY
           echo "New OID: $NEW_COMMIT_SHA" >> $GITHUB_STEP_SUMMARY

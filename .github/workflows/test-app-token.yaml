@@ -1,7 +1,6 @@
 name: Test App Token
 
 on:
-  push:
   workflow_dispatch:
 
 permissions:

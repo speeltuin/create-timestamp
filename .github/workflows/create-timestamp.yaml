@@ -98,7 +98,7 @@ jobs:
             '{base_tree: $bt, tree: $tr}')
 
           echo "PAYLOAD(TREE_JSON):"
-          echo "PAYLOAD" | jq .
+          echo "${PAYLOAD}" | jq .
 
           NEW_TREE_SHA=$(echo "$PAYLOAD" | api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
 

@@ -65,7 +65,7 @@ jobs:
           SUMMARY_ROWS=""
 
           while read -r STATUS FILE; do
-            [ -z "$STATUS" ] && continue
+            [[ -z "$STATUS" ]] && continue
             if [[ "$STATUS" == *"D"* ]]; then
               TREE_JSON=$(echo "$TREE_JSON" | jq --arg p "$FILE" '. += [{path: $p, mode: "100644", type: "blob", sha: null}]')
               SUMMARY_ROWS="${SUMMARY_ROWS}| 🗑️ | $FILE |\n"
@@ -84,7 +84,7 @@ jobs:
                 SUMMARY_ROWS="${SUMMARY_ROWS}| ✅ | $FILE |\n"
               fi
             fi
-          done < <(git status --porcelain --untracked-files=all)
+          done < <(git status --porcelain=v1 --untracked-files=all)
 
           if [[ "$TREE_JSON" == "[]" ]]; then
             echo "### 😴 No Changes Detected" >> $GITHUB_STEP_SUMMARY
@@ -92,9 +92,20 @@ jobs:
           fi
 
           # Create Tree
-          NEW_TREE_SHA=$(jq -n --arg bt "$TREE_SHA" --argjson tr "$TREE_JSON" \
-            '{base_tree: $bt, tree: $tr}' | \
-            gh api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
+          PAYLOAD=$(jq -n \
+            --arg bt "$TREE_SHA" \
+            --argjson tr "$TREE_JSON" \
+            '{base_tree: $bt, tree: $tr}')
+
+          echo "PAYLOAD(TREE_JSON):"
+          echo "PAYLOAD" | jq .
+
+          NEW_TREE_SHA=$(echo "$PAYLOAD" | api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
+
+          #NEW_TREE_SHA=$(jq -n --arg bt "$TREE_SHA" --argjson tr "$TREE_JSON" \
+          #  '{base_tree: $bt, tree: $tr}' | \
+          #  gh api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
+
 
           if [[ -z "$NEW_TREE_SHA" || "$NEW_TREE_SHA" == "null" ]]; then
             echo "Error: Failed to create tree." && exit 1

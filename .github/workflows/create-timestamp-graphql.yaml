@@ -68,7 +68,7 @@ jobs:
           HEAD_OID=$(gh api graphql -f query="$QUERY" -f owner="$REPO_OWNER" -f name="$REPO_NAME" -f branch="refs/heads/$BRANCH" --jq '.data.repository.ref.target.oid')
 
           # Get the status in v2 format
-          STATUS_OUT=$(git status --porcelain=v2 -untracked-files=all)
+          STATUS_OUT=$(git status --porcelain=v2 --untracked-files=all)
 
           # 2. Prepare Additions
           # We catch:

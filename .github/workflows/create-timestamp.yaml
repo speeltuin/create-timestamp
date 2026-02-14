@@ -97,14 +97,9 @@ jobs:
             --argjson tr "$TREE_JSON" \
             '{base_tree: $bt, tree: $tr}')
 
-          echo "PAYLOAD(TREE_JSON):"
-          echo "${PAYLOAD}" | jq .
-
-          NEW_TREE_SHA=$(echo "$PAYLOAD" | gh api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
-
-          #NEW_TREE_SHA=$(jq -n --arg bt "$TREE_SHA" --argjson tr "$TREE_JSON" \
-          #  '{base_tree: $bt, tree: $tr}' | \
-          #  gh api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
+          NEW_TREE_SHA=$(jq -n --arg bt "$TREE_SHA" --argjson tr "$TREE_JSON" \
+            '{base_tree: $bt, tree: $tr}' | \
+            gh api repos/$REPO/git/trees -X POST --input - | jq -r '.sha')
 
 
           if [[ -z "$NEW_TREE_SHA" || "$NEW_TREE_SHA" == "null" ]]; then

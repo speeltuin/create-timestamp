@@ -18,14 +18,17 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         id: bot_identity
         run: |
-          BOT_NAME="${{ steps.app-token.outputs.app-slug }}[bot]"
-          BOT_ID=$(gh api "users/${BOT_LOGIN}" --jq '.id')
-          BOT_EMAIL="${BOT_ID}+${BOT_LOGIN}@users.noreply.github.com"
+          APP_SLUG="${{ steps.app-token.outputs.appslug }}"
+          BOT_ID=$(gh api "users/${APP_SLUG}[bot]" --jq '.id')
+          BOT_NAME="${APP_SLUG}[bot]"
+          BOT_EMAIL="${BOT_ID}+${BOT_NAME}@users.noreply.github.com"
 
-          printf "Detected Bot: %s\n" "${BOT_LOGIN}"
-          printf "Detected E-mail: %s\n" "${BOT_EMAIL}"
+          printf "Detected Bot ID: %s\n" "${BOT_ID}"
+          printf "Detected Bot Name: %s\n" "${BOT_NAME}"
+          printf "Detected Bot E-mail: %s\n" "${BOT_EMAIL}"
 
-          echo "bot_name=${BOT_LOGIN}" >> $GITHUB_OUTPUT
+          echo "bot_id=${BOT_ID}" >> $GITHUB_OUTPUT
+          echo "bot_name=${BOT_NAME}" >> $GITHUB_OUTPUT
           echo "bot_email=${BOT_EMAIL}" >> $GITHUB_OUTPUT
 
       - name: Checkout code
